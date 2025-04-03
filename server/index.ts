@@ -6,6 +6,11 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Health check endpoint - placed here to ensure it's registered before Vite middleware
+app.get("/healthz", (_req: Request, res: Response) => {
+  res.status(200).json({ status: "ok", message: "Server is running" });
+});
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;

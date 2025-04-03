@@ -28,6 +28,16 @@ async function checkFastApi() {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Health check endpoints for monitoring - using multiple paths for different services
+  app.get("/api/health-check", (_req: Request, res: Response) => {
+    res.status(200).json({ status: "ok", message: "Server is running" });
+  });
+  
+  // Additional health check endpoint for Render.com deployment platform
+  app.get("/api/healthz", (_req: Request, res: Response) => {
+    res.status(200).json({ status: "ok", message: "Health check passed" });
+  });
+
   // Check if FastAPI is running (only if configured to use it)
   const fastApiRunning = useFastAPI ? await checkFastApi() : false;
 

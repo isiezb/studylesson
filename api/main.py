@@ -64,7 +64,7 @@ async def root():
 @app.get("/api/health")
 async def health():
     """Health check endpoint"""
-    return {"status": "ok"}
+    return {"status": "ok", "message": "Server is running"}
 
 # Include routers
 app.include_router(lesson_router, prefix="/api", tags=["lessons"])

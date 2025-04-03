@@ -1,0 +1,25 @@
+{
+  "name": "AI Lesson Generator",
+  "description": "An AI-powered lesson creation and management application",
+  "repository": "https://github.com/yourusername/ai-lesson-generator",
+  "keywords": ["node", "react", "express", "fastapi", "education", "ai"],
+  "addons": ["heroku-postgresql"],
+  "env": {
+    "NODE_ENV": {
+      "description": "Environment type",
+      "value": "production"
+    },
+    "OPENROUTER_API_KEY": {
+      "description": "OpenRouter API key for AI content generation",
+      "required": true
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    }
+  ],
+  "scripts": {
+    "postdeploy": "npm run db:push"
+  }
+}
