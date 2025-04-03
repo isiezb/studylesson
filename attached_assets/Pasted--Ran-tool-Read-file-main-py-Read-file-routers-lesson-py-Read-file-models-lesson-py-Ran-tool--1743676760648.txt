@@ -1,0 +1,58 @@
+
+
+Ran tool
+
+Read file: main.py
+
+Read file: routers/lesson.py
+
+Read file: models/lesson.py
+
+Ran tool
+
+Read file: services/__init__.py
+
+Ran tool
+
+Read file: services/llm/client.py
+
+Read file: services/llm/prompting.py
+
+Read file: requirements.txt
+
+Read file: supabase_setup.sql
+I need to develop a backend system with the following specifications:
+
+Architecture Overview:
+[PYTHON-BASED FASTAPI SERVER with asynchronous request handling capabilities, combined with a static file server for frontend assets. The backend implements a RESTful API for generating and managing educational lessons.]
+
+Core Components:
+Database Layer - [SUPABASE POSTGRES DATABASE with tables for storing lessons. Schema includes fields for title, content, summary, academic grade level, subject, word count, vocabulary list, and quiz data. RLS policies allow anonymous access for MVP, with infrastructure for future authentication implementation.]
+
+API Endpoints:
+[TWO PRIMARY ENDPOINTS: `/api/lessons/generate` for creating new lessons based on parameters such as grade level and subject, and `/api/lessons/{lesson_id}/continue` for extending existing lessons with additional content. Both endpoints return structured JSON responses with lesson content, vocabulary, quizzes, and summaries.]
+
+Services Layer:
+LLM Integration - [OPENROUTER API CLIENT for accessing AI models (default: Gemini 2.0). The client handles authentication, request formatting, and error handling through `services/llm/client.py`.]
+Prompt Engineering - [SPECIALIZED PROMPTING SYSTEM in `services/llm/prompting.py` that constructs detailed prompts with educational parameters and formatting requirements to generate structured, educational content.]
+Content Processing - [PARSER SERVICE that transforms raw LLM responses into structured lesson objects with content, vocabulary terms, learning objectives, and quiz questions.]
+
+Data Models:
+[PYDANTIC MODEL CLASSES define request and response structures for all API interactions. Key models include:
+- LessonGenerationRequest - Parameters for creating lessons
+- LessonGenerationResponse - Structured lesson output with title, content, vocabulary
+- LessonContinuationRequest - Parameters for extending lessons
+- VocabularyItem - Term and definition structure
+- QuizItem - Question, options, and correct answer schema]
+
+Error Handling & Logging:
+[COMPREHENSIVE ERROR HANDLING with HTTP exception management and detailed logging. API responses include appropriate status codes and error messages. The system logs request details, API interactions, and error states.]
+
+Deployment & Environment:
+[CONFIGURABLE ENVIRONMENT through dotenv (.env) files for API keys and settings. The application is designed for deployment on hosting platforms with integrated static file serving capabilities for the SPA frontend.]
+
+Technical Requirements:
+[ASYNCHRONOUS REQUEST PROCESSING with httpx for external API calls. Dependency injection pattern for service components. Structured JSON response formatting for all endpoints. Type annotations throughout the codebase for improved maintainability.]
+
+Additional Features:
+[CORS MIDDLEWARE configured for cross-origin requests. Static file mounting for SPA routing support. Modular service architecture with clear separation of concerns across prompting, LLM interaction, and content processing.]

@@ -1,5 +1,7 @@
 import { lessons, type Lesson, type InsertLesson, type QuizQuestion } from "@shared/schema";
-import { nanoid } from "nanoid";
+import { db } from "./db";
+import { eq, desc } from "drizzle-orm";
+import { log } from "./vite";
 
 export interface IStorage {
   getLessons(): Promise<Lesson[]>;
@@ -9,157 +11,141 @@ export interface IStorage {
   continueLesson(id: number): Promise<Lesson | undefined>;
 }
 
-// Mock data for reading times
-const getRandomReadTime = () => Math.floor(Math.random() * 20) + 10; // 10-30 minutes
+// Helper for reading times
+const estimateReadTime = (content: string): number => {
+  const wordsPerMinute = 200;
+  const wordCount = content.split(/\s+/).length;
+  return Math.max(5, Math.ceil(wordCount / wordsPerMinute)); // Minimum 5 minutes
+};
 
-export class MemStorage implements IStorage {
-  private lessons: Map<number, Lesson>;
-  currentId: number;
+// Helper for generating quiz content
+const generateQuiz = (topic: string): QuizQuestion[] => {
+  // Generate a simple quiz with 3 questions
+  return [
+    {
+      question: `What is a primary characteristic of ${topic}?`,
+      options: [
+        "It only applies to theoretical contexts",
+        "It integrates multiple disciplinary approaches",
+        "It was developed in the 21st century",
+        "It requires specialized equipment to study"
+      ],
+      correctAnswer: 1
+    },
+    {
+      question: `Which of the following is NOT typically associated with ${topic}?`,
+      options: [
+        "Systematic analysis",
+        "Historical development",
+        "Random application without principles",
+        "Practical applications"
+      ],
+      correctAnswer: 2
+    },
+    {
+      question: `What is an important consideration when studying ${topic}?`,
+      options: [
+        "Understanding fundamental principles",
+        "Ignoring historical context",
+        "Avoiding practical applications",
+        "Limiting to a single perspective"
+      ],
+      correctAnswer: 0
+    }
+  ];
+};
 
+export class DatabaseStorage implements IStorage {
   constructor() {
-    this.lessons = new Map();
-    this.currentId = 1;
+    log('Database storage initialized', 'storage');
   }
 
   async getLessons(): Promise<Lesson[]> {
-    return Array.from(this.lessons.values()).sort((a, b) => {
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
+    try {
+      return await db.select().from(lessons).orderBy(desc(lessons.createdAt));
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      log(`Error fetching lessons: ${errorMessage}`, 'storage');
+      return [];
+    }
   }
 
   async getLesson(id: number): Promise<Lesson | undefined> {
-    return this.lessons.get(id);
+    try {
+      const result = await db.select().from(lessons).where(eq(lessons.id, id)).limit(1);
+      return result.length > 0 ? result[0] : undefined;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      log(`Error fetching lesson by ID ${id}: ${errorMessage}`, 'storage');
+      return undefined;
+    }
   }
 
   async createLesson(insertLesson: InsertLesson): Promise<Lesson> {
-    const id = this.currentId++;
-    const now = new Date();
-    
-    // Generate mock content if not provided
-    const content = insertLesson.content || this.generateLessonContent(insertLesson.topic);
-    
-    // Generate quiz if requested
-    const quiz = insertLesson.includeQuiz ? this.generateQuiz(insertLesson.topic) : null;
-    
-    const lesson: Lesson = {
-      ...insertLesson,
-      id,
-      createdAt: now,
-      content: content,
-      readTime: getRandomReadTime(),
-      quiz: quiz,
-    };
-    
-    this.lessons.set(id, lesson);
-    return lesson;
+    try {
+      // Generate placeholder content if not provided by API
+      if (!insertLesson.content) {
+        insertLesson.content = `<p>Content for the lesson about ${insertLesson.topic} will be generated.</p>`;
+      }
+      
+      // Calculate read time if not provided
+      if (!insertLesson.readTime) {
+        insertLesson.readTime = estimateReadTime(insertLesson.content);
+      }
+      
+      // Generate quiz if requested
+      if (insertLesson.includeQuiz && !insertLesson.quiz) {
+        insertLesson.quiz = generateQuiz(insertLesson.topic);
+      }
+
+      const [newLesson] = await db.insert(lessons).values(insertLesson).returning();
+      return newLesson;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      log(`Error creating lesson: ${errorMessage}`, 'storage');
+      throw new Error(`Failed to create lesson: ${errorMessage}`);
+    }
   }
 
   async deleteLesson(id: number): Promise<boolean> {
-    const exists = this.lessons.has(id);
-    if (exists) {
-      this.lessons.delete(id);
-      return true;
+    try {
+      const result = await db.delete(lessons).where(eq(lessons.id, id)).returning({ id: lessons.id });
+      return result.length > 0;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      log(`Error deleting lesson with ID ${id}: ${errorMessage}`, 'storage');
+      return false;
     }
-    return false;
   }
 
   async continueLesson(id: number): Promise<Lesson | undefined> {
-    const lesson = this.lessons.get(id);
-    if (!lesson) return undefined;
-    
-    // Add more content to the lesson
-    const additionalContent = this.generateAdditionalContent(lesson.topic);
-    const updatedLesson: Lesson = {
-      ...lesson,
-      content: lesson.content + additionalContent,
-      readTime: lesson.readTime + 5, // Add 5 more minutes to read time
-    };
-    
-    this.lessons.set(id, updatedLesson);
-    return updatedLesson;
-  }
-
-  // Helper methods for generating content
-  private generateLessonContent(topic: string): string {
-    return `<h2>Introduction to ${topic}</h2>
-<p>This is an AI-generated lesson about ${topic}. The lesson provides a comprehensive introduction to the key concepts, principles, and applications of this subject.</p>
-
-<h2>Key Concepts</h2>
-<p>Here are some important concepts related to ${topic}:</p>
-<ul>
-  <li>Understanding the fundamentals</li>
-  <li>Historical development</li>
-  <li>Modern applications</li>
-  <li>Future directions</li>
-</ul>
-
-<h2>Main Principles</h2>
-<p>The main principles underlying ${topic} include systematic approaches, analytical thinking, and creative problem-solving. These principles help us understand how ${topic} works in various contexts.</p>
-
-<h2>Practical Applications</h2>
-<p>There are numerous practical applications of ${topic} in everyday life and professional settings. These applications demonstrate the versatility and importance of this subject area.</p>
-
-<h2>Summary</h2>
-<p>In this lesson, we have explored the fundamental aspects of ${topic}, including its key concepts, main principles, and practical applications. Understanding these elements provides a solid foundation for further study and application of this important subject.</p>`;
-  }
-
-  private generateAdditionalContent(topic: string): string {
-    return `
-
-<h2>Advanced Concepts in ${topic}</h2>
-<p>Building on the foundation established earlier, this section explores more advanced concepts and applications in ${topic}.</p>
-
-<h3>Deeper Analysis</h3>
-<p>A deeper analysis of ${topic} reveals additional layers of complexity and nuance that weren't covered in the introductory section. These include:</p>
-<ul>
-  <li>Complex theoretical frameworks</li>
-  <li>Interdisciplinary connections</li>
-  <li>Specialized methodologies</li>
-  <li>Current research developments</li>
-</ul>
-
-<h3>Case Studies</h3>
-<p>Examining specific case studies helps illustrate the practical implications and applications of ${topic} in real-world scenarios. These examples provide concrete instances of how the principles and concepts are applied.</p>
-
-<h3>Future Directions</h3>
-<p>As our understanding of ${topic} continues to evolve, new directions and possibilities emerge. This section explores potential future developments and their implications for the field.</p>`;
-  }
-
-  private generateQuiz(topic: string): QuizQuestion[] {
-    // Generate a simple quiz with 3 questions
-    return [
-      {
-        question: `What is a primary characteristic of ${topic}?`,
-        options: [
-          "It only applies to theoretical contexts",
-          "It integrates multiple disciplinary approaches",
-          "It was developed in the 21st century",
-          "It requires specialized equipment to study"
-        ],
-        correctAnswer: 1
-      },
-      {
-        question: `Which of the following is NOT typically associated with ${topic}?`,
-        options: [
-          "Systematic analysis",
-          "Historical development",
-          "Random application without principles",
-          "Practical applications"
-        ],
-        correctAnswer: 2
-      },
-      {
-        question: `What is an important consideration when studying ${topic}?`,
-        options: [
-          "Understanding fundamental principles",
-          "Ignoring historical context",
-          "Avoiding practical applications",
-          "Limiting to a single perspective"
-        ],
-        correctAnswer: 0
-      }
-    ];
+    try {
+      const existingLesson = await this.getLesson(id);
+      if (!existingLesson) return undefined;
+      
+      // This will be replaced with actual API-generated content
+      const additionalContent = `\n\n<h2>Advanced Concepts in ${existingLesson.topic}</h2>
+<p>This section will contain additional content for the lesson.</p>`;
+      
+      const updatedContent = existingLesson.content + additionalContent;
+      const additionalReadTime = 5; // Default 5 minutes for additional content
+      
+      const [updatedLesson] = await db
+        .update(lessons)
+        .set({
+          content: updatedContent,
+          readTime: existingLesson.readTime + additionalReadTime
+        })
+        .where(eq(lessons.id, id))
+        .returning();
+      
+      return updatedLesson;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      log(`Error continuing lesson with ID ${id}: ${errorMessage}`, 'storage');
+      return undefined;
+    }
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
